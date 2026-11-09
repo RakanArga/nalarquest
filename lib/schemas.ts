@@ -21,3 +21,4 @@ export const questionZ = z.object({
   penjelasan: z.string().min(5),
   kutipanBukti: z.string().min(5),
 });
+
