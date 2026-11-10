@@ -1,0 +1,143 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL") // pooled connection (pgbouncer) untuk runtime
+  directUrl  = env("DIRECT_URL") // koneksi langsung untuk migrate
+  extensions = [vector]
+}
+
+enum ExamStatus {
+  BERJALAN
+  SELESAI
+
+  @@map("exam_status")
+}
+
+enum ProgressStatus {
+  TERKUNCI
+  TERBUKA
+  BERJALAN
+  LULUS
+
+  @@map("progress_status")
+}
+
+enum MessageSender {
+  USER
+  AI
+
+  @@map("message_sender")
+}
+
+
+model Role {
+  id       Int       @id @default(autoincrement())
+  nama     String    @unique // contoh: "siswa", "guru"
+  profiles Profile[]
+
+  @@map("roles")
+}
+
+model Profile {
+  id        String   @id @db.Uuid
+  nama      String
+  roleId    Int      @map("role_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  role             Role               @relation(fields: [roleId], references: [id])
+  questionAttempts QuestionAttempt[]
+  examSessions     ExamSession[]
+  topicProgress    UserTopicProgress[]
+
+  @@index([roleId])
+  @@map("profiles")
+}
+
+
+model Topic {
+  id        Int      @id @default(autoincrement())
+  slug      String   @unique
+  judul     String
+  sumber    String? // asal materi (URL / judul buku)
+  lisensi   String? // contoh: "CC BY-SA 4.0"
+  urutan    Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  chunks           SourceChunk[]
+  questionAttempts QuestionAttempt[]
+  examSessions     ExamSession[]
+  userProgress     UserTopicProgress[]
+
+  @@map("topics")
+}
+
+// Embedding: 768 dimensi (sesuaikan dengan model embedding yang dipakai).
+// Prisma belum bisa query kolom vector secara langsung -> gunakan $queryRaw.
+model SourceChunk {
+  id         Int                         @id @default(autoincrement())
+  topicId    Int                         @map("topic_id")
+  chunkIndex Int                         @map("chunk_index")
+  isiTeks    String                      @map("isi_teks")
+  embedding  Unsupported("vector(768)")?
+
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([topicId, chunkIndex])
+  @@map("source_chunks")
+}
+
+model QuestionAttempt {
+  id           Int      @id @default(autoincrement())
+  userId       String   @map("user_id") @db.Uuid
+  topicId      Int      @map("topic_id")
+  pertanyaan   String
+  kutipanBukti String   @map("kutipan_bukti")
+  jawabanUser  String?  @map("jawaban_user")
+  benar        Boolean?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user  Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([userId, topicId])
+  @@map("question_attempts")
+}
+
+
+model ExamSession {
+  id         Int        @id @default(autoincrement())
+  userId     String     @map("user_id") @db.Uuid
+  topicId    Int        @map("topic_id")
+  status     ExamStatus @default(BERJALAN)
+  jumlahTurn Int        @default(0) @map("jumlah_turn")
+  lulus      Boolean?
+  skor       Int?
+  startedAt  DateTime   @default(now()) @map("started_at")
+  finishedAt DateTime?  @map("finished_at")
+
+  user     Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic    Topic         @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([userId, topicId])
+  @@map("exam_sessions")
+}
+
+
+
+model UserTopicProgress {
+  userId     String         @map("user_id") @db.Uuid
+  topicId    Int            @map("topic_id")
+  status     ProgressStatus @default(TERKUNCI)
+  skorTerbaik Int?          @map("skor_terbaik")
+  unlockedAt DateTime?      @map("unlocked_at")
+
+  user  Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([userId, topicId])
+  @@map("user_topic_progress")
+}
