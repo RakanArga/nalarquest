@@ -121,7 +121,6 @@ model ExamSession {
 
   user     Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
   topic    Topic         @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  messages ExamMessage[]
 
   @@index([userId, topicId])
   @@map("exam_sessions")
