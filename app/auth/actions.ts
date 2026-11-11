@@ -3,6 +3,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import { generateJSON } from "@/lib/gemini";
+import { personalizationSchema, personalizationZ } from "@/lib/schemas";
+import { DEFAULT_STATIC_ROLE } from "@/app/api/auth/register/route";
 
 export type AuthActionResult = {
   error?: string;
@@ -37,7 +40,9 @@ export async function loginAction(
 }
 
 /**
- * Server Action untuk Registrasi Pengguna Baru & Pembuatan Profil Prisma.
+ * Server Action untuk Registrasi Pengguna Baru.
+ * Role TIDAK dipilih oleh pengguna di form, melainkan otomatis menggunakan
+ * nilai statis awal ("siswa"), yang nantinya dapat dinilai ulang oleh AI.
  */
 export async function registerAction(
   _prevState: AuthActionResult | null,
@@ -46,7 +51,6 @@ export async function registerAction(
   const nama = formData.get("nama")?.toString().trim();
   const email = formData.get("email")?.toString().trim();
   const password = formData.get("password")?.toString();
-  const roleInput = formData.get("role")?.toString().trim() || "siswa";
 
   if (!nama || !email || !password) {
     return { error: "Nama, email, dan password wajib diisi." };
@@ -58,14 +62,14 @@ export async function registerAction(
 
   const supabase = await createClient();
 
-  // 1. Daftarkan akun ke Supabase Auth
+  // 1. Daftarkan akun ke Supabase Auth dengan peran statis awal
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
         nama,
-        role: roleInput,
+        role: DEFAULT_STATIC_ROLE,
       },
     },
   });
@@ -77,14 +81,12 @@ export async function registerAction(
   // 2. Sinkronisasi data ke tabel Profile di PostgreSQL via Prisma
   if (data.user) {
     try {
-      // Pastikan master role tersedia di tabel roles
       const roleRecord = await prisma.role.upsert({
-        where: { nama: roleInput },
+        where: { nama: DEFAULT_STATIC_ROLE },
         update: {},
-        create: { nama: roleInput },
+        create: { nama: DEFAULT_STATIC_ROLE },
       });
 
-      // Simpan profile user
       await prisma.profile.upsert({
         where: { id: data.user.id },
         update: {
@@ -99,11 +101,53 @@ export async function registerAction(
       });
     } catch (dbErr) {
       console.error("[registerAction] Peringatan: Profil Prisma gagal disinkronkan:", dbErr);
-      // User di Supabase Auth tetap berhasil dibuat
     }
   }
 
   redirect("/dashboard");
+}
+
+/**
+ * Server Action untuk menilai dan memperbarui Peran pengguna dengan AI.
+ */
+export async function personalizeRoleAction(preferensiBelajar: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Unauthorized" };
+  }
+
+  let assignedRole = "Ksatria Nalar";
+  try {
+    const raw = await generateJSON({
+      prompt: `Tentukan peran RPG belajar yang cocok untuk siswa ini berdasarkan preferensi: "${preferensiBelajar}"`,
+      schema: personalizationSchema,
+      system: "Kamu penilai karakter belajar RPG yang ringkas.",
+    });
+
+    const parsed = personalizationZ.safeParse(raw);
+    if (parsed.success) {
+      assignedRole = parsed.data.peran;
+    }
+  } catch (err) {
+    console.warn("[personalizeRoleAction] Menggunakan fallback statis:", err);
+  }
+
+  const roleRecord = await prisma.role.upsert({
+    where: { nama: assignedRole.toLowerCase().trim() },
+    update: {},
+    create: { nama: assignedRole.toLowerCase().trim() },
+  });
+
+  await prisma.profile.update({
+    where: { id: user.id },
+    data: { roleId: roleRecord.id },
+  });
+
+  return { success: true, role: assignedRole };
 }
 
 /**
