@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     const source = await getSource(String(subjek), String(materi));
 
     const prompt = `Buat 1 soal pilihan ganda dengan tepat 4 opsi dalam bahasa Indonesia,
-HANYA berdasarkan teks berikut. Jangan memakai pengetahuan di luar teks.
+    HANYA berdasarkan teks berikut. Jangan memakai pengetahuan di luar teks.
 
 Aturan:
 - Hanya satu opsi yang benar, tiga lainnya masuk akal tetapi salah.

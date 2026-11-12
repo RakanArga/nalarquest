@@ -1,5 +1,6 @@
 import { Type } from "@google/genai";
 import { z } from "zod";
+import { ROLES } from "@/lib/role";
 
 // --- SKEMA KUIS / SOAL ---
 export const questionSchema = {
@@ -43,7 +44,7 @@ export const chatZ = z.object({
 export const personalizationSchema = {
   type: Type.OBJECT,
   properties: {
-    peran: { type: Type.STRING },
+    peran: { type: Type.STRING, enum: [...ROLES] },
     alasan: { type: Type.STRING },
     gayaBahasa: { type: Type.STRING },
   },
@@ -51,7 +52,7 @@ export const personalizationSchema = {
 };
 
 export const personalizationZ = z.object({
-  peran: z.string().min(3).max(50),
+  peran: z.enum(ROLES),
   alasan: z.string().min(5).max(500),
   gayaBahasa: z.string().min(5).max(300),
 });

@@ -32,7 +32,6 @@ export async function POST(req: Request) {
     // Ambil data profil & peran dari database Prisma
     const profile = await prisma.profile.findUnique({
       where: { id: authData.user.id },
-      include: { role: true },
     });
 
     return NextResponse.json({
@@ -45,7 +44,7 @@ export async function POST(req: Request) {
       profile: profile
         ? {
             nama: profile.nama,
-            role: profile.role?.nama ?? "siswa",
+            role: profile.role,
           }
         : null,
     });

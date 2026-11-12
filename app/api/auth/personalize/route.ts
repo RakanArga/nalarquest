@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentProfile } from "@/lib/auth";
 import { generateJSON } from "@/lib/gemini";
 import { personalizationSchema, personalizationZ } from "@/lib/schemas";
+import { DEFAULT_ROLE, toRoleEnum, ROLE_DISPLAY } from "@/lib/role";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(req: Request) {
@@ -29,7 +30,7 @@ Contoh opsi peran:
 
 Berikan alasan singkat dan panduan gaya bahasa untuk AI tutor (Guru Besar) saat berbicara dengannya.`;
 
-    let assignedRole = "siswa";
+    let assignedRole = DEFAULT_ROLE;
     let alasan = "Peran default statis.";
     let gayaBahasa = "Bahasa ramah, sopan, dan memotivasi.";
 
@@ -39,7 +40,7 @@ Berikan alasan singkat dan panduan gaya bahasa untuk AI tutor (Guru Besar) saat 
         prompt: promptText,
         schema: personalizationSchema,
         system:
-          "Kamu adalah penilai karakter RPG NalarQuest yang bijak. Nilai kepribadian belajar siswa secara akurat dan ringkas.",
+          "Kamu adalah penilai karakter RPG NalarQuest yang bijak. Nilai kepribadian belajar siswa secara akurat dan ringkas. Pilih peran HANYA dari opsi yang diberikan.",
       });
 
       const parsed = personalizationZ.safeParse(raw);
@@ -54,24 +55,14 @@ Berikan alasan singkat dan panduan gaya bahasa untuk AI tutor (Guru Besar) saat 
         aiErr
       );
       // Fallback ke peran statis
-      assignedRole = "Ksatria Nalar";
+      assignedRole = DEFAULT_ROLE;
     }
 
-    // Upsert role baru di database
-    const roleRecord = await prisma.role.upsert({
-      where: { nama: assignedRole.toLowerCase().trim() },
-      update: {},
-      create: { nama: assignedRole.toLowerCase().trim() },
-    });
-
-    // Update profile user di Prisma
+    // Update profile user di Prisma dengan peran dari enum statis
     const updatedProfile = await prisma.profile.update({
       where: { id: authData.user.id },
       data: {
-        roleId: roleRecord.id,
-      },
-      include: {
-        role: true,
+        role: toRoleEnum(assignedRole),
       },
     });
 
@@ -80,7 +71,7 @@ Berikan alasan singkat dan panduan gaya bahasa untuk AI tutor (Guru Besar) saat 
       message: "Peran petualang berhasil dievaluasi dan diperbarui.",
       profile: {
         nama: updatedProfile.nama,
-        role: updatedProfile.role.nama,
+        role: ROLE_DISPLAY[updatedProfile.role],
       },
       evaluasiAI: {
         peran: assignedRole,

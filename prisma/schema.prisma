@@ -26,37 +26,29 @@ enum ProgressStatus {
   @@map("progress_status")
 }
 
-enum MessageSender {
-  USER
-  AI
+enum roleNama {
+  Ksatria_Nalar
+  Penyihir_Teori
+  Cendekia_Analitik
+  Pengelana_Konsep
 
-  @@map("message_sender")
-}
-
-
-model Role {
-  id       Int       @id @default(autoincrement())
-  nama     String    @unique // contoh: "siswa", "guru"
-  profiles Profile[]
-
-  @@map("roles")
+  @@map("role_nama")
 }
 
 model Profile {
   id        String   @id @db.Uuid
   nama      String
-  roleId    Int      @map("role_id")
   createdAt DateTime @default(now()) @map("created_at")
+  role      roleNama @default(Ksatria_Nalar)
 
-  role             Role               @relation(fields: [roleId], references: [id])
+  
   questionAttempts QuestionAttempt[]
   examSessions     ExamSession[]
   topicProgress    UserTopicProgress[]
 
-  @@index([roleId])
+
   @@map("profiles")
 }
-
 
 model Topic {
   id        Int      @id @default(autoincrement())
@@ -107,7 +99,6 @@ model QuestionAttempt {
   @@map("question_attempts")
 }
 
-
 model ExamSession {
   id         Int        @id @default(autoincrement())
   userId     String     @map("user_id") @db.Uuid
@@ -119,21 +110,19 @@ model ExamSession {
   startedAt  DateTime   @default(now()) @map("started_at")
   finishedAt DateTime?  @map("finished_at")
 
-  user     Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  topic    Topic         @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  user  Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
 
   @@index([userId, topicId])
   @@map("exam_sessions")
 }
 
-
-
 model UserTopicProgress {
-  userId     String         @map("user_id") @db.Uuid
-  topicId    Int            @map("topic_id")
-  status     ProgressStatus @default(TERKUNCI)
-  skorTerbaik Int?          @map("skor_terbaik")
-  unlockedAt DateTime?      @map("unlocked_at")
+  userId      String         @map("user_id") @db.Uuid
+  topicId     Int            @map("topic_id")
+  status      ProgressStatus @default(TERKUNCI)
+  skorTerbaik Int?           @map("skor_terbaik")
+  unlockedAt  DateTime?      @map("unlocked_at")
 
   user  Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
   topic Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
