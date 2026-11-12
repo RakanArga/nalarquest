@@ -1,16 +1,25 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { Suspense } from "react";
 
-export default async function Home() {
+async function SessionRedirect() {
   const user = await getSession();
 
   if (user) {
     redirect("/dashboard");
   }
 
+  return null;
+}
+
+export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-950 px-6 py-12 text-zinc-100">
+    <>
+      <Suspense fallback={null}>
+        <SessionRedirect />
+      </Suspense>
+      <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-950 px-6 py-12 text-zinc-100">
       <div className="max-w-2xl text-center space-y-6">
         <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-sm font-medium text-amber-300">
           ✨ Platform Belajar Berbasis Teks RPG & AI
@@ -40,5 +49,6 @@ export default async function Home() {
         </div>
       </div>
     </div>
+    </>
   );
 }

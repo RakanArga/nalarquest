@@ -17,7 +17,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const history = riwayat.map((m: any) => ({
+    const history = riwayat.map((m: { role?: unknown; text?: unknown }) => ({
       role: m.role === "model" ? ("model" as const) : ("user" as const),
       parts: [{ text: String(m.text ?? "").slice(0, MAX_LEN) }],
     }));

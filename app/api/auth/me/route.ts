@@ -26,7 +26,7 @@ export async function GET() {
         ? {
             id: data.profile.id,
             nama: data.profile.nama,
-            role: data.profile.role?.nama ?? "siswa",
+            role: data.profile.role,
             createdAt: data.profile.createdAt,
           }
         : null,

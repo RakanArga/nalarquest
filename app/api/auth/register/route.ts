@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 
-export const DEFAULT_STATIC_ROLE = "siswa";
-
 export async function POST(req: Request) {
   try {
     const { email, password, nama } = await req.json();
@@ -24,14 +22,13 @@ export async function POST(req: Request) {
 
     const supabase = await createClient();
 
-    // 1. Daftarkan ke Supabase Auth dengan nilai peran default statis ("siswa")
+    // 1. Daftarkan ke Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: String(email).trim(),
       password: String(password),
       options: {
         data: {
           nama: String(nama).trim(),
-          role: DEFAULT_STATIC_ROLE,
         },
       },
     });
@@ -47,27 +44,15 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. Buat atau pastikan Role default statis ("siswa") ada di database
-    const roleRecord = await prisma.role.upsert({
-      where: { nama: DEFAULT_STATIC_ROLE },
-      update: {},
-      create: { nama: DEFAULT_STATIC_ROLE },
-    });
-
-    // 3. Simpan data Profile pengguna di Prisma
+    // 3. Simpan data Profile pengguna di Prisma (role default dari enum)
     const profile = await prisma.profile.upsert({
       where: { id: authData.user.id },
       update: {
-        nama: String(nama).trim(),
-        roleId: roleRecord.id,
+        nama: String(nama).trim()
       },
       create: {
         id: authData.user.id,
-        nama: String(nama).trim(),
-        roleId: roleRecord.id,
-      },
-      include: {
-        role: true,
+        nama: String(nama).trim()
       },
     });
 
@@ -81,8 +66,7 @@ export async function POST(req: Request) {
         },
         profile: {
           nama: profile.nama,
-          role: profile.role.nama,
-        },
+        }
       },
       { status: 201 }
     );

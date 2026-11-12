@@ -20,7 +20,7 @@ export async function getSession() {
 }
 
 /**
- * Mengambil data user Supabase Auth beserta Profile & Role dari Prisma.
+ * Mengambil data user Supabase Auth beserta Profile dari Prisma.
  */
 export async function getCurrentProfile() {
   const user = await getSession();
@@ -31,7 +31,6 @@ export async function getCurrentProfile() {
   try {
     const profile = await prisma.profile.findUnique({
       where: { id: user.id },
-      include: { role: true },
     });
 
     return { user, profile };

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { generateJSON } from "@/lib/gemini";
 import { personalizationSchema, personalizationZ } from "@/lib/schemas";
-import { DEFAULT_STATIC_ROLE } from "@/app/api/auth/register/route";
+import { DEFAULT_ROLE, toRoleEnum, ROLE_DISPLAY } from "@/lib/role";
 
 export type AuthActionResult = {
   error?: string;
@@ -42,7 +42,7 @@ export async function loginAction(
 /**
  * Server Action untuk Registrasi Pengguna Baru.
  * Role TIDAK dipilih oleh pengguna di form, melainkan otomatis menggunakan
- * nilai statis awal ("siswa"), yang nantinya dapat dinilai ulang oleh AI.
+ * nilai default dari enum statis, yang nantinya dapat dinilai ulang oleh AI.
  */
 export async function registerAction(
   _prevState: AuthActionResult | null,
@@ -62,14 +62,13 @@ export async function registerAction(
 
   const supabase = await createClient();
 
-  // 1. Daftarkan akun ke Supabase Auth dengan peran statis awal
+  // 1. Daftarkan akun ke Supabase Auth
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
         nama,
-        role: DEFAULT_STATIC_ROLE,
       },
     },
   });
@@ -81,22 +80,14 @@ export async function registerAction(
   // 2. Sinkronisasi data ke tabel Profile di PostgreSQL via Prisma
   if (data.user) {
     try {
-      const roleRecord = await prisma.role.upsert({
-        where: { nama: DEFAULT_STATIC_ROLE },
-        update: {},
-        create: { nama: DEFAULT_STATIC_ROLE },
-      });
-
       await prisma.profile.upsert({
         where: { id: data.user.id },
         update: {
           nama,
-          roleId: roleRecord.id,
         },
         create: {
           id: data.user.id,
           nama,
-          roleId: roleRecord.id,
         },
       });
     } catch (dbErr) {
@@ -120,12 +111,12 @@ export async function personalizeRoleAction(preferensiBelajar: string) {
     return { error: "Unauthorized" };
   }
 
-  let assignedRole = "Ksatria Nalar";
+  let assignedRole = DEFAULT_ROLE;
   try {
     const raw = await generateJSON({
-      prompt: `Tentukan peran RPG belajar yang cocok untuk siswa ini berdasarkan preferensi: "${preferensiBelajar}"`,
+      prompt: `Tentukan peran RPG belajar yang cocok untuk siswa ini berdasarkan preferensi: "${preferensiBelajar}". Pilih peran HANYA dari opsi: Ksatria Nalar, Penyihir Teori, Cendekia Analitik, Pengelana Konsep.`,
       schema: personalizationSchema,
-      system: "Kamu penilai karakter belajar RPG yang ringkas.",
+      system: "Kamu penilai karakter belajar RPG yang ringkas. Pilih peran HANYA dari opsi yang diberikan.",
     });
 
     const parsed = personalizationZ.safeParse(raw);
@@ -136,18 +127,12 @@ export async function personalizeRoleAction(preferensiBelajar: string) {
     console.warn("[personalizeRoleAction] Menggunakan fallback statis:", err);
   }
 
-  const roleRecord = await prisma.role.upsert({
-    where: { nama: assignedRole.toLowerCase().trim() },
-    update: {},
-    create: { nama: assignedRole.toLowerCase().trim() },
-  });
-
   await prisma.profile.update({
     where: { id: user.id },
-    data: { roleId: roleRecord.id },
+    data: { role: toRoleEnum(assignedRole) },
   });
 
-  return { success: true, role: assignedRole };
+  return { success: true, role: ROLE_DISPLAY[toRoleEnum(assignedRole)] };
 }
 
 /**
